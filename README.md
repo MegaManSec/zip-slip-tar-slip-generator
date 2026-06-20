@@ -17,19 +17,25 @@ symlink left in the output that leaks whatever is later served from it).
 
 ## These are live payloads: run them in a throwaway environment
 
-Against a vulnerable extractor these archives have real side effects outside the
-extraction directory. A patched extractor refuses them and nothing escapes, but
-don't bet your host on it. Run extraction tests in a container, a VM, or some
-other disposable environment.
+Against a vulnerable extractor these archives write or read outside the
+extraction directory. As shipped, every case targets a throwaway path, so on a
+clean machine nothing of yours is destroyed: the write cases land
+`/tmp/PWNED.txt`, and the hard-link case overwrites `/tmp/VICTIM.txt`, the file
+you create to test it. The danger is the primitive, not the shipped payload.
+Each write case is an arbitrary write, so repointing one at a real path (a
+dotfile, an SSH key, a sibling package's file) overwrites that file. Run tests
+in a container, a VM, or some other disposable environment so a vulnerable
+extractor can't reach anything real.
 
-- The write cases (`dotdot`, `abs`, `backslash`, and every symlink-collision
-  case) drop `/tmp/PWNED.txt`, clobbering any file already at that path.
-- `hardlink-slip.tar` is the destructive one. It writes through a hard link into
-  the link's target, replacing that file's contents. As shipped it points at
-  `/tmp/VICTIM.txt`; don't repoint it at anything you care about.
-- `exfil-slip` leaves symlinks pointing at host files like `/etc/passwd`. They do
-  nothing on their own, but anything that later reads through them leaks the
-  target.
+- The traversal and symlink-collision cases (`dotdot`, `abs`, `backslash`,
+  `toctou`, `case`, `unicode`, `unicode-nfkc`) create the target file if it's
+  absent and overwrite it if it's already there.
+- `hardlink-slip.tar` can only overwrite a file that already exists, because the
+  hard link won't resolve otherwise. That is the one real difference: it is
+  purely an overwrite, never a create.
+- `exfil-slip` writes nothing dangerous itself. It leaves symlinks pointing at
+  host files like `/etc/passwd`, and anything that later reads through them leaks
+  the target.
 
 None of this is theoretical. The "Zip Slip" disclosure (Snyk, 2018) affected
 hundreds of libraries. The case and Unicode collision cases here mirror node-tar
