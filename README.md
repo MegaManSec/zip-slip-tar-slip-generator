@@ -51,11 +51,16 @@ CVE-2021-37712; arbitrary overwrite via symlink is CVE-2018-20834; adm-zip's
 `../` traversal is CVE-2018-1002204; and the RAR symlink-traversal case is
 unrar's CVE-2022-30333, exploited in the wild against Zimbra.
 
-## Read / exfiltration (all four formats)
+## Read / exfiltration
+
+Leave a path behind that leaks a host file when the output is later served or
+read. The symlink version works in every format; the hard-link version is tar
+and rar only, since ZIP and 7-Zip have no hard-link entry type.
 
 | File | Technique |
 |------|-----------|
-| `exfil-slip` | Symlinks (`passwd` → `/etc/passwd`, `env` → `/proc/self/environ`, `root` → `/`) that survive extraction. No collision needed. When the output is later served or read, they leak arbitrary host files. |
+| `exfil-slip` | (all four formats) Symlinks (`passwd` → `/etc/passwd`, `env` → `/proc/self/environ`, `root` → `/`) that survive extraction. No collision needed. Leaks through any consumer that follows the symlink. |
+| `hardlink-exfil-slip` | (tar and rar) A lone hard link `passwd` → `/etc/passwd`, with no second entry and no overwrite. The extracted name shares the target's inode, so it leaks even where symlinks are refused, because it is the file rather than a pointer to follow. Links within one filesystem only, and on Linux with `protected_hardlinks` on it needs an extractor that owns or can write the target, in practice one running as root. |
 
 ## Write: baseline traversal (all four formats)
 

